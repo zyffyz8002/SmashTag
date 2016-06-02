@@ -15,11 +15,15 @@ class DetialTableViewController: UITableViewController {
         didSet {
             if tweet != nil {
                 tweetMentions.removeAll()
-                addDisplayItems("Medias", Items: tweet!.media)
-                addDisplayItems("Urls", Items: tweet!.urls)
-                addDisplayItems("UserMentions", Items: tweet!.userMentions)
-                addDisplayItems("Hashtags", Items: tweet!.hashtags)
+                //addDisplayItems(MentionTypes.Poster, Items: [tweet!.user])
+                addDisplayItems(MentionTypes.Images, Items: tweet!.media)
+                addDisplayItems(MentionTypes.Urls, Items: tweet!.urls)
                 
+                var userMentions = tweet!.userMentions as [AnyObject]
+                userMentions.insert(tweet!.user, atIndex: 0)
+                
+                addDisplayItems(MentionTypes.Users, Items: userMentions)
+                addDisplayItems(MentionTypes.Hashtags, Items: tweet!.hashtags)
                 tableView.reloadData()
             }
         }
@@ -27,7 +31,7 @@ class DetialTableViewController: UITableViewController {
     
     
     
-    private func addDisplayItems(Name: String, Items: [AnyObject]) {
+    private func addDisplayItems(Name: MentionTypes, Items: [AnyObject]) {
         if Items.count > 0 {
             tweetMentions.append(
                 DetailedSection(Name: Name, Items: Items)
@@ -38,23 +42,17 @@ class DetialTableViewController: UITableViewController {
     
     private var tweetMentions = [DetailedSection]()
     
-    private enum TypeNames : String {
-        case Image
-        case Url
+    private enum MentionTypes : String {
+        case Images
+        case Urls
         case Users
         case Hashtags
+        case Poster
     }
 
     private struct DetailedSection {
-        var Name: String
+        var Name: MentionTypes
         var Items: [AnyObject]
-    }
-    
-    private enum TweetMentions {
-        case Medias([Twitter.MediaItem])
-        case Urls([Twitter.Mention])
-        case Hashtags([Twitter.Mention])
-        case UserMentions([Twitter.Mention])
     }
 
     override func viewDidLoad() {
@@ -86,18 +84,18 @@ class DetialTableViewController: UITableViewController {
         static let ShowImage = "Show Image"
     }
 
-    private func getColoredDetails(name: String, mention: Twitter.Mention) -> NSMutableAttributedString
+    private func getColoredDetails(name: MentionTypes, mention: String) -> NSMutableAttributedString
     {
         var myMutableLabelString = NSMutableAttributedString()
         
         var color = UIColor.redColor()
-        if !mention.keyword.isEmpty
+        if !mention.isEmpty
         {
-            myMutableLabelString = NSMutableAttributedString(string: mention.keyword)
+            myMutableLabelString = NSMutableAttributedString(string: mention)
             switch name {
-            case "Urls" : color = UIColor.blueColor()
-            case "UserMentions" : color = UIColor.greenColor()
-            case "Hashtags" : color = UIColor.redColor()
+            case .Urls : color = UIColor.blueColor()
+            case .Users : color = UIColor.greenColor()
+            case .Hashtags : color = UIColor.redColor()
             default:
                 break
             }
@@ -114,18 +112,20 @@ class DetialTableViewController: UITableViewController {
         var cell = UITableViewCell()
         
         switch name {
-        case "Urls", "UserMentions", "Hashtags":
+        case .Urls, .Users, .Hashtags, .Poster:
             cellIdentifier = Storyboard.Mentions
-        case "Medias":
+        case .Images:
             cellIdentifier = Storyboard.Images
-        default:
-            break
         }
         if (!cellIdentifier.isEmpty) {
             cell = tableView.dequeueReusableCellWithIdentifier(cellIdentifier, forIndexPath: indexPath)
             
             if let mention = detail as? Twitter.Mention {
-                cell.textLabel?.attributedText = getColoredDetails(name, mention: mention)
+                cell.textLabel?.attributedText = getColoredDetails(name, mention: mention.keyword)
+            }
+            
+            if let poster = detail as? Twitter.User {
+                cell.textLabel?.attributedText = getColoredDetails(name, mention: "@"+poster.name)
             }
             
             if let mention = detail as? Twitter.MediaItem {
@@ -152,29 +152,40 @@ class DetialTableViewController: UITableViewController {
         let name = tweetMentions[indexPath.section].Name
         
         switch name {
-        case "Hashtags", "UserMentions":
+        case .Hashtags, .Users:
             performSegueWithIdentifier(Storyboard.Search, sender: detail)
-        case "Urls":
+        case .Urls:
             if let urlMention = detail as? Twitter.Mention {
                 UIApplication.sharedApplication().openURL(NSURL(string: urlMention.keyword)!)
             }
-        case "Medias" :
+        case .Images :
             performSegueWithIdentifier(Storyboard.ShowImage, sender: detail)
-            
         default:
             break
         }
     }
     
     override func tableView(tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return tweetMentions[section].Name
+        
+        let a = tweetMentions[section].Name
+        return a.rawValue
     }
     
     override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
         if segue.identifier == Storyboard.Search {
-            if let searchText = sender! as? Mention {
-                if let tcv = segue.destinationViewController.contentViewController as? TweetTableViewController {
-                    tcv.searchText = searchText.keyword
+            if let tcv = segue.destinationViewController.contentViewController as? TweetTableViewController {
+                if let searchText = sender! as? Mention {
+                    var originalName = searchText.keyword
+                    if originalName.containsString("@"){
+                        originalName.removeAtIndex(originalName.startIndex)
+                        tcv.searchText = "@" + originalName + " OR from:" + originalName
+                    } else {
+                        tcv.searchText = originalName
+                    }
+                }
+                if let searchText = sender! as? Twitter.User {
+                    let originalName = searchText.name
+                    tcv.searchText = "@" + originalName + " OR from:" + originalName
                 }
             }
         }

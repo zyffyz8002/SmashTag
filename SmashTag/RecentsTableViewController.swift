@@ -16,14 +16,29 @@ class RecentsTableViewController: UITableViewController {
         static let ShowSearchTweet = "ShowSearchTweet"
     }
     
-    private var searchHistory : [String]? {
-        get {
-            return NSUserDefaults.standardUserDefaults().objectForKey(Storyboard.SearchHistory) as? [String]
+    private var searchHistory : [String]? = NSUserDefaults.standardUserDefaults().objectForKey(Storyboard.SearchHistory) as? [String] {
+        
+        didSet {
+            if searchHistory != nil {
+                NSUserDefaults.standardUserDefaults().setObject(searchHistory, forKey: Storyboard.SearchHistory)
+            }
         }
     }
     
+   /*     {
+        get {
+            return NSUserDefaults.standardUserDefaults().objectForKey(Storyboard.SearchHistory) as? [String]
+        }
+        
+        set {
+            NSUserDefaults.standardUserDefaults().setObject(newValue, forKey: Storyboard.SearchHistory)
+            tableView.reloadData()
+        }
+    }*/
+    
     override func viewWillAppear(animated: Bool) {
         super.viewWillAppear(animated)
+        searchHistory = NSUserDefaults.standardUserDefaults().objectForKey(Storyboard.SearchHistory) as? [String]
         tableView.reloadData()
     }
 
@@ -53,16 +68,13 @@ class RecentsTableViewController: UITableViewController {
     
     override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCellWithIdentifier(Storyboard.SearchHistoryCell, forIndexPath: indexPath)
-
         if searchHistory != nil {
             cell.textLabel?.text = searchHistory![indexPath.row]
         }
-
         return cell
     }
     
     override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
-        
         if segue.identifier == Storyboard.ShowSearchTweet {
             if let ttv = segue.destinationViewController.contentViewController as? TweetTableViewController {
                 if let senderCell = sender as? UITableViewCell {
@@ -71,15 +83,25 @@ class RecentsTableViewController: UITableViewController {
             }
         }
     }
- 
-
-    /*
-    // Override to support conditional editing of the table view.
+    
     override func tableView(tableView: UITableView, canEditRowAtIndexPath indexPath: NSIndexPath) -> Bool {
         // Return false if you do not want the specified item to be editable.
         return true
     }
-    */
+    
+    override func tableView(tableView: UITableView, commitEditingStyle editingStyle: UITableViewCellEditingStyle, forRowAtIndexPath indexPath: NSIndexPath) {
+        if editingStyle == .Delete {
+            // Delete the row from the data source
+            if searchHistory != nil {
+                searchHistory?.removeAtIndex(indexPath.row)
+            }
+            tableView.deleteRowsAtIndexPaths([indexPath], withRowAnimation: .Fade)
+
+        } else if editingStyle == .Insert {
+            // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
+        }
+    }
+ 
 
     /*
     // Override to support editing the table view.
