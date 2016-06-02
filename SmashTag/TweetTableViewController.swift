@@ -8,8 +8,13 @@
 
 import UIKit
 import Twitter
+import CoreData
 
-class TweetTableViewController: UITableViewController, UITextFieldDelegate {
+class TweetTableViewController: UITableViewController, UITextFieldDelegate
+{
+    
+    var managedObjectContext: NSManagedObjectContext? =
+        (UIApplication.sharedApplication().delegate as? AppDelegate)?.managedObjectContext
 
     private let prefs = NSUserDefaults.standardUserDefaults()
     
@@ -73,11 +78,40 @@ class TweetTableViewController: UITableViewController, UITextFieldDelegate {
                     if request == weakSelf?.lastTwitterRequest {
                         if !newTweets.isEmpty {
                             weakSelf?.tweets.insert(newTweets, atIndex: 0)
+                            weakSelf?.updataDatabase(newTweets)
                         }
                     }
                 }
             }
         }
+    }
+    
+    private func printDatabaseStatistics() {
+        managedObjectContext?.performBlock {
+            if let results = try? self.managedObjectContext!.executeFetchRequest(NSFetchRequest(entityName: "TwitterUser")) {
+                print("\(results.count) TwitterUser")
+            }
+            
+            let tweetCount = self.managedObjectContext!.countForFetchRequest(NSFetchRequest(entityName: "Tweet"), error: nil)
+            print("\(tweetCount) Tweets")
+        }
+    }
+    
+    private func updataDatabase(newTweets: [Twitter.Tweet]) {
+        managedObjectContext?.performBlock {
+            for twitterInfo in newTweets {
+                // create a new, unique Tweet with
+                _ = Tweet.tweetWithTwitterInfo(twitterInfo, inManagedObjectContext: self.managedObjectContext!)
+            }
+            
+            do {
+                try self.managedObjectContext?.save()
+            } catch let error {
+                print("Core Data Error : \(error)")
+            }
+        }
+        printDatabaseStatistics()
+        print("done printing database statistics")
     }
     
     override func viewDidLoad() {
@@ -107,6 +141,7 @@ class TweetTableViewController: UITableViewController, UITextFieldDelegate {
         static let TweetCellIdentifier = "Tweet"
         static let ShowMentionsDetails = "ShowDetails"
         static let SearchHistory = "TweetSearchHistory"
+        static let TweetersMentioningSearchTerm = "TweetersMentioningSearchTerm"
     }
     
     override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
@@ -184,6 +219,13 @@ class TweetTableViewController: UITableViewController, UITextFieldDelegate {
                 if let tvc = segue.destinationViewController as? DetialTableViewController {
                     tvc.tweet = tweetCell.tweet
                 }
+            }
+        }
+        
+        if segue.identifier == Storyboard.TweetersMentioningSearchTerm {
+            if let tweetersTVC = segue.destinationViewController as? TweetersTableViewController {
+                tweetersTVC.mention = searchText
+                tweetersTVC.managedObjectConetext = managedObjectContext
             }
         }
     }
